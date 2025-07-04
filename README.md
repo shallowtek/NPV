@@ -26,3 +26,12 @@ It features a clean Blazor UI frontend, a secure and validated Minimal API backe
 
 ## Solution Structure
 
+/NPV.sln
+/README.md # You are here!
+/NPV.Shared/ # Shared models and interfaces (DTOs, contracts, interfaces, validators)
+/NPV.API/ # Minimal API backend (business logic, endpoints, DI, FluentValidation)
+/NPV.UI/ # Blazor WebAssembly client (UI, components, chart JS, HTTP calls)
+/NPV.API.Testing.Unit/ # Unit tests for API
+/NPV.API.Testing.Integration/ # Integration tests for API
+
+---
