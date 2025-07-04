@@ -1,0 +1,49 @@
+﻿body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    background-color: #f4f7fc;
+    color: #333;
+}
+
+.container-fluid {
+    padding-left: 30px;
+    padding-right: 30px;
+}
+
+h1, h3 {
+    color: #343a40;
+}
+
+input.form-control {
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+    padding: 8px 12px;
+}
+
+button.btn-primary {
+    border-radius: 4px;
+    padding: 10px 15px;
+}
+
+button:disabled {
+    opacity: 0.6;
+}
+
+.table {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+}
+
+    .table th, .table td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+        max-width: 150px;
+        word-wrap: break-word;
+    }
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #f9f9f9;
+}
+

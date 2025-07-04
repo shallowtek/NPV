@@ -1,0 +1,172 @@
+@page "/"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<h1 class="text-center mb-5">NPV Calculator</h1>
+
+<div class="card shadow p-4">
+    <div class="row g-3">
+        <div class="col-12">
+            @if (ValidationErrors?.Count > 0)
+            {
+                <div class="alert alert-danger mt-3">
+                    <ul>
+                        @foreach (var error in ValidationErrors)
+                        {
+                            <li>@error</li>
+                        }
+                    </ul>
+                </div>
+            }
+            <label class="form-label">Cash Flows (comma-separated)</label>
+            <input class="form-control" @bind="CashFlows" placeholder="e.g., 1000, 2000, -500" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Lower Bound (%)</label>
+            <input class="form-control" type="number" step="0.01" @bind="LowerBound" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Upper Bound (%)</label>
+            <input class="form-control" type="number" step="0.01" @bind="UpperBound" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Increment (%)</label>
+            <input class="form-control" type="number" step="0.01" @bind="Increment" />
+        </div>
+        <div class="col-12 text-end">
+            <button class="btn btn-primary mt-3" @onclick="CalculateNPV" disabled="@IsLoading">
+                @if (IsLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>Calculating...</span>
+                }
+                else
+                {
+                    <span>Calculate</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+
+
+@if (Results?.Any() == true)
+{
+    <div class="card shadow mt-5 p-4">
+        <h3 class="mb-4">Results Table</h3>
+        <div class="table-responsive mb-4">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Rate (%)</th>
+                        <th>NPV</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Results)
+                    {
+                        <tr>
+                            <td>@r.DiscountRate</td>
+                            <td>@r.NPV</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="mt-4 mb-4">NPV Chart</h3>
+        <div class="chart-container">
+            <canvas id="npvChart"></canvas>
+        </div>
+    </div>
+}
+
+@code {
+
+    public List<string> ValidationErrors { get; set; } = new();
+
+    public string CashFlows { get; set; } = "";
+
+    public decimal LowerBound { get; set; } = 1.0M;
+
+    public decimal UpperBound { get; set; } = 15.0M;
+
+    public decimal Increment { get; set; } = 0.25M;
+
+    public bool IsLoading { get; set; } = false;
+
+    public List<NpvResult> Results { get; set; } = new();
+
+    private async Task CalculateNPV()
+    {
+        try
+        {
+            IsLoading = true;
+            ValidationErrors.Clear();
+
+            var request = new NpvRequest
+                {
+                    CashFlows = CashFlows.Split(',')
+
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Select(x => decimal.Parse(x.Trim()))
+                        .ToList(),
+
+                    LowerBound = LowerBound,
+                    UpperBound = UpperBound,
+                    Increment = Increment
+                };
+            var response = await Http.PostAsJsonAsync("/api/npv/calculate", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<NpvResponse>();
+
+                Results = data?.NpvResults ?? new List<NpvResult>();
+
+                StateHasChanged();
+                await Task.Delay(50);
+
+                if (Results.Any())
+                {
+                    var jsData = Results.Select(r => new { discountRate = r.DiscountRate, npv = r.NPV }).ToList();
+                    await JS.InvokeVoidAsync("renderChart", jsData);
+                }
+            }
+            else if (response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                var errors = await response.Content.ReadFromJsonAsync<List<ValidationError>>();
+
+                if (errors != null)
+
+                {
+                    ValidationErrors = errors.Select(e =>
+                        string.IsNullOrWhiteSpace(e.PropertyName)
+                            ? e.ErrorMessage
+
+                            : $"{e.PropertyName}: {e.ErrorMessage}"
+
+                    ).ToList();
+                }
+                else
+                {
+                    ValidationErrors.Add("An error occurred, but no details were returned.");
+                }
+                Results = new List<NpvResult>();
+            }
+            else
+            {
+                ValidationErrors.Add("An unknown error occurred.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"Error: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}
