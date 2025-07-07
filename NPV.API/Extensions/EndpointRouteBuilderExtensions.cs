@@ -7,7 +7,7 @@ public static class EndpointRouteBuilderExtensions
     public static void RegisterNpvEndpoints(this IEndpointRouteBuilder endpointRouteBuilder)
     {
         var npvEndpoints = endpointRouteBuilder.MapGroup("api/npv/calculate");
-        npvEndpoints.MapPost("", NpvHandlers.CalculateAsync)
+        npvEndpoints.MapPost("", NpvHandler.CalculateAsync)
             .WithName("Calculate")
             .WithOpenApi();
     }

@@ -3,6 +3,7 @@ using NPV.API.Extensions;
 using NPV.API.Services;
 using NPV.Shared.Interfaces;
 using NPV.Shared.Validators;
+using NPV.API.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,14 +35,14 @@ if (app.Environment.IsDevelopment())
     app.UseCors();
 }
 
-if (!app.Environment.IsDevelopment())
+app.UseMiddleware<ExceptionMiddleware>();
+
+#if DEBUG
+app.MapGet("/api/test-exception", (HttpContext ctx) =>
 {
-    app.UseExceptionHandler("/error");
-}
-else
-{
-    app.UseDeveloperExceptionPage();
-}
+    throw new Exception("Test exception!");
+});
+#endif
 
 app.MapHealthChecks("/health");
 app.MapDefaultEndpoints();

@@ -5,7 +5,12 @@ using NPV.API.EndpointHandlers;
 using NPV.Shared.Models;
 using NPV.Shared.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
+/// <summary>
+/// Unit tests for NpvHandler endpoint, testing null, invalid, and valid request scenarios,
+/// as well as multi-error validation cases.
+/// </summary>
 namespace NPV.API.Testing.Unit;
 
 public class NpvHandlersTests
@@ -16,24 +21,21 @@ public class NpvHandlersTests
     [Fact]
     public async Task CalculateAsync_NullRequest_ReturnsBadRequest()
     {
-        var result = await NpvHandlers.CalculateAsync(null, _calculatorMock.Object, _validatorMock.Object);
+        var httpContext = new DefaultHttpContext();
+        var result = await NpvHandler.CalculateAsync(null, _calculatorMock.Object, _validatorMock.Object, httpContext);
 
-        var valueResult = Assert.IsAssignableFrom<IValueHttpResult>(result);
-        Assert.NotNull(valueResult.Value);
-        var errorList = ((IEnumerable<object>)valueResult.Value).ToList();
-        Assert.Single(errorList);
-
-        var error = errorList[0];
-        var propertyName = error.GetType().GetProperty("PropertyName")?.GetValue(error)?.ToString();
-        var errorMessage = error.GetType().GetProperty("ErrorMessage")?.GetValue(error)?.ToString();
-
-        Assert.Equal("Request", propertyName);
-        Assert.Equal("Request cannot be null.", errorMessage);
+        var details = GetProblemDetailsFromResult(result);
+        Assert.Equal(400, details.Status);
+        Assert.Equal("Validation error.", details.Title);
+        Assert.Contains("Request", details.Errors.Keys);
+        Assert.Contains("Request cannot be null.", details.Errors["Request"]);
+        Assert.Equal(httpContext.Request.Path, details.Instance);
     }
 
     [Fact]
     public async Task CalculateAsync_InvalidModel_ReturnsBadRequest()
     {
+        var httpContext = new DefaultHttpContext();
         var invalidRequest = new NpvRequest();
 
         _validatorMock.Setup(v => v.ValidateAsync(invalidRequest, default))
@@ -41,17 +43,59 @@ public class NpvHandlersTests
                 new ValidationFailure("CashFlows", "CashFlows required")
             }));
 
-        var result = await NpvHandlers.CalculateAsync(invalidRequest, _calculatorMock.Object, _validatorMock.Object);
+        var result = await NpvHandler.CalculateAsync(invalidRequest, _calculatorMock.Object, _validatorMock.Object, httpContext);
 
-        var valueResult = Assert.IsAssignableFrom<IValueHttpResult>(result);
-        Assert.NotNull(valueResult.Value);
-        var errorList = ((IEnumerable<object>)valueResult.Value).ToList();
-        Assert.Contains(errorList, e =>
+        var details = GetProblemDetailsFromResult(result);
+        Assert.Equal(400, details.Status);
+        Assert.Contains("CashFlows", details.Errors.Keys);
+        Assert.Contains("CashFlows required", details.Errors["CashFlows"]);
+        Assert.Equal(httpContext.Request.Path, details.Instance);
+    }
+
+    [Theory]
+    [MemberData(nameof(MultipleValidationFailures))]
+    public async Task CalculateAsync_MultipleValidationErrors_ReturnsAllErrors(List<ValidationFailure> failures, string[] expectedKeys)
+    {
+        var httpContext = new DefaultHttpContext();
+        var request = new NpvRequest();
+
+        _validatorMock.Setup(v => v.ValidateAsync(request, default))
+            .ReturnsAsync(new ValidationResult(failures));
+
+        var result = await NpvHandler.CalculateAsync(request, _calculatorMock.Object, _validatorMock.Object, httpContext);
+
+        var details = GetProblemDetailsFromResult(result);
+        Assert.Equal(400, details.Status);
+
+        foreach (var key in expectedKeys)
         {
-            var propertyName = e.GetType().GetProperty("PropertyName")?.GetValue(e)?.ToString();
-            var errorMessage = e.GetType().GetProperty("ErrorMessage")?.GetValue(e)?.ToString();
-            return propertyName == "CashFlows" && errorMessage == "CashFlows required";
-        });
+            Assert.Contains(key, details.Errors.Keys);
+        }
+        Assert.Equal(httpContext.Request.Path, details.Instance);
+    }
+
+    public static IEnumerable<object[]> MultipleValidationFailures()
+    {
+        yield return new object[]
+        {
+            new List<ValidationFailure>
+            {
+                new ValidationFailure("CashFlows", "CashFlows required"),
+                new ValidationFailure("Rate", "Rate required"),
+            },
+            new[] { "CashFlows", "Rate" }
+        };
+
+        yield return new object[]
+        {
+            new List<ValidationFailure>
+            {
+                new ValidationFailure("Increment", "Increment required"),
+                new ValidationFailure("LowerBound", "LowerBound required"),
+                new ValidationFailure("UpperBound", "UpperBound required"),
+            },
+            new[] { "Increment", "LowerBound", "UpperBound" }
+        };
     }
 
     [Fact]
@@ -78,12 +122,26 @@ public class NpvHandlersTests
 
         _calculatorMock.Setup(x => x.Calculate(request)).Returns(expectedResponse);
 
-        var result = await NpvHandlers.CalculateAsync(request, _calculatorMock.Object, _validatorMock.Object);
+        var httpContext = new DefaultHttpContext();
+
+        var result = await NpvHandler.CalculateAsync(request, _calculatorMock.Object, _validatorMock.Object, httpContext);
 
         var okResult = Assert.IsType<Microsoft.AspNetCore.Http.HttpResults.Ok<NpvResponse>>(result);
         Assert.NotNull(okResult.Value);
         Assert.NotNull(okResult.Value.NpvResults);
         Assert.Single(okResult.Value.NpvResults);
         Assert.Equal(expectedResponse.NpvResults.First().NPV, okResult.Value.NpvResults.First().NPV);
+    }
+
+    /// <summary>
+    /// Helper to extract ValidationProblemDetails from the IResult, or throw if not present.
+    /// </summary>
+    private static ValidationProblemDetails GetProblemDetailsFromResult(IResult result)
+    {
+        var httpResult = result as Microsoft.AspNetCore.Http.HttpResults.JsonHttpResult<ValidationProblemDetails>;
+        Assert.NotNull(httpResult);
+        var details = httpResult.Value;
+        Assert.NotNull(details);
+        return details;
     }
 }
