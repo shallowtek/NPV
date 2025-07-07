@@ -4,6 +4,10 @@ using OpenTelemetry;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Unchase.Swashbuckle.AspNetCore.Extensions.Extensions;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 
 namespace NPV.API.Extensions;
 
@@ -31,8 +35,8 @@ public static class BuilderExtensions
         builder.Services.AddSwaggerGen(options =>
         {
             options.AddEnumsWithValuesFixFilters();
-            // Uncomment below to add JWT bearer security to Swagger UI
-            /*
+            //Uncomment below to add JWT bearer security to Swagger UI
+
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
                 Name = "Authorization",
@@ -56,12 +60,29 @@ public static class BuilderExtensions
                     new string[] {}
                 }
             });
-            */
+
         });
         builder.Services.AddRequestDecompression();
         builder.Services.AddResponseCompression();
 
-        builder.Services.AddAuthentication();
+        builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            options.Authority = builder.Configuration["Jwt:Authority"]; // e.g., https://your-auth-server
+            options.Audience = builder.Configuration["Jwt:Audience"];   // e.g., your API identifier
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+            };
+        });
+
         builder.Services.AddAuthorization();
 
         builder.Services.ConfigureHttpClientDefaults(http =>
