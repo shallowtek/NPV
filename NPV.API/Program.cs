@@ -30,7 +30,7 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// Use your extension for all other default configs, including JWT authentication, Swagger, health, etc
+// Used for all other default configs, including JWT authentication, Swagger, health, etc
 builder.AddServiceDefaults();
 
 var app = builder.Build();
@@ -47,8 +47,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionMiddleware>();
 
-// Authentication/authorization middlewares are registered in your MapDefaultEndpoints extension!
-
+// Used for middleware tests
 #if DEBUG
 app.MapGet("/api/test-exception", (HttpContext ctx) =>
 {
@@ -56,15 +55,12 @@ app.MapGet("/api/test-exception", (HttpContext ctx) =>
 });
 #endif
 
-app.MapHealthChecks("/health");
+// Map Endpoints
 app.MapDefaultEndpoints();
 app.RegisterNpvEndpoints();
 app.RegisterAuthEndpoints();
 
-// ... Registration/Login endpoints, seed roles, etc (as in earlier answers) ...
-
 app.Run();
-
 
 // Use for Integration Tests
 public partial class Program { }

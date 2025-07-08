@@ -62,6 +62,7 @@ public static class BuilderExtensions
             });
 
         });
+
         builder.Services.AddRequestDecompression();
         builder.Services.AddResponseCompression();
 
@@ -73,8 +74,7 @@ public static class BuilderExtensions
         })
         .AddJwtBearer(options =>
         {
-            options.Authority = builder.Configuration["Jwt:Authority"]; // e.g., https://your-auth-server
-            options.Audience = builder.Configuration["Jwt:Audience"];   // e.g., your API identifier
+            options.Audience = builder.Configuration["Jwt:Audience"];
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidIssuer = builder.Configuration["Jwt:Issuer"],
